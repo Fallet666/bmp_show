@@ -116,6 +116,7 @@ public:
 
         // Получаем максимальное количество потоков
         unsigned int numThreads = std::thread::hardware_concurrency();
+        if (numThreads == 0) numThreads = 1; // Если нет доступного количества потоков, то берем 1
         int rowsPerThread = infoHeader.height / numThreads;
         std::vector<std::future<void> > futures;
 
