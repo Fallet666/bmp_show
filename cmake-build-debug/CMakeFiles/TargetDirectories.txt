@@ -1,3 +1,3 @@
-/Users/user/CLionProjects/testovoe/cmake-build-debug/CMakeFiles/bmp_show.dir
-/Users/user/CLionProjects/testovoe/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/user/CLionProjects/testovoe/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/user/CLionProjects/bmp_show/cmake-build-debug/CMakeFiles/bmp_show.dir
+/Users/user/CLionProjects/bmp_show/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/user/CLionProjects/bmp_show/cmake-build-debug/CMakeFiles/rebuild_cache.dir

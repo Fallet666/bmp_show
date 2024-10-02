@@ -2,8 +2,9 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
-#include <stdexcept>  // Для исключений
-#include <future>     // Для многопоточности
+#include <stdexcept>
+#include <future>
+#include <array>
 
 #pragma pack(push, 1)
 
@@ -33,13 +34,18 @@ struct BMPInfoHeader {
 
 class BMPImage {
 private:
-    BMPFileHeader fileHeader = {};
-    BMPInfoHeader infoHeader = {};
-    std::vector<uint8_t> pixelData;
-    int rowStride = 0;
-    const char WHITE = '#';
-    const char BLACK = ' ';
-    const uint8_t brightness_factor = 128;
+    BMPFileHeader fileHeader{};
+    BMPInfoHeader infoHeader{};
+    std::vector<uint8_t> pixelData{};
+    int rowStride{0};
+    constexpr static char WHITE = '#';
+    constexpr static char BLACK = ' ';
+    constexpr static uint8_t brightnessFactor = 128;
+
+    // Получение индекса пикселя
+    int getPixelIndex(int x, int y) const {
+        return (y * rowStride) + (x * (infoHeader.bitCount / 8));
+    }
 
 public:
     void openBMP(const std::string& fileName) {
@@ -50,7 +56,10 @@ public:
 
         // Чтение заголовков
         file.read(reinterpret_cast<char*>(&fileHeader), sizeof(fileHeader));
+        if (file.gcount() != sizeof(fileHeader)) throw std::runtime_error("Ошибка чтения заголовка файла.");
+
         file.read(reinterpret_cast<char*>(&infoHeader), sizeof(infoHeader));
+        if (file.gcount() != sizeof(infoHeader)) throw std::runtime_error("Ошибка чтения заголовка информации.");
 
         if (infoHeader.bitCount != 24 && infoHeader.bitCount != 32) {
             throw std::runtime_error("Неподдерживаемый формат BMP! Ожидалось 24 или 32 бита.");
@@ -61,13 +70,13 @@ public:
         rowStride = (infoHeader.width * (infoHeader.bitCount / 8) + 3) & ~3;
         pixelData.resize(rowStride * infoHeader.height);
         file.read(reinterpret_cast<char*>(pixelData.data()), pixelData.size());
-        file.close();
+        if (file.gcount() != pixelData.size()) throw std::runtime_error("Ошибка чтения пикселей.");
     }
 
     [[nodiscard]] bool hasMoreThanTwoColors() const {
         for (int y = 0; y < infoHeader.height; ++y) {
             for (int x = 0; x < infoHeader.width; ++x) {
-                int index = (y * rowStride) + (x * (infoHeader.bitCount / 8));
+                int index = getPixelIndex(x, y);
                 uint8_t blue = pixelData[index];
                 uint8_t green = pixelData[index + 1];
                 uint8_t red = pixelData[index + 2];
@@ -79,36 +88,30 @@ public:
     }
 
     void convertToBlackAndWhite() {
-        auto convertRow = [this](int startRow, int endRow, std::vector<uint8_t>& newPixelData) {
+        std::vector<uint8_t> newPixelData(pixelData.size());
+
+        auto convertRow = [this, &newPixelData](int startRow, int endRow) {
             for (int y = startRow; y < endRow; ++y) {
                 for (int x = 0; x < infoHeader.width; ++x) {
-                    int index = (y * rowStride) + (x * (infoHeader.bitCount / 8));
-
+                    int index = getPixelIndex(x, y);
                     uint8_t blue = pixelData[index];
                     uint8_t green = pixelData[index + 1];
                     uint8_t red = pixelData[index + 2];
 
                     double brightness = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 
-                    if (brightness < brightness_factor) {
-                        newPixelData[index] = 0;
-                        newPixelData[index + 1] = 0;
-                        newPixelData[index + 2] = 0;
-                    } else {
-                        newPixelData[index] = 255;
-                        newPixelData[index + 1] = 255;
-                        newPixelData[index + 2] = 255;
-                    }
+                    uint8_t value = (brightness < brightnessFactor) ? 0 : 255;
+                    newPixelData[index] = value;
+                    newPixelData[index + 1] = value;
+                    newPixelData[index + 2] = value;
                 }
             }
         };
 
-        std::vector<uint8_t> newPixelData = pixelData;
-
         // Разделение на 2 потока для параллельной конвертации
         int mid = infoHeader.height / 2;
-        auto future1 = std::async(std::launch::async, convertRow, 0, mid, std::ref(newPixelData));
-        auto future2 = std::async(std::launch::async, convertRow, mid, infoHeader.height, std::ref(newPixelData));
+        auto future1 = std::async(std::launch::async, convertRow, 0, mid);
+        auto future2 = std::async(std::launch::async, convertRow, mid, infoHeader.height);
 
         future1.get();
         future2.get();
@@ -121,17 +124,14 @@ public:
             std::cout << "Изображение содержит более двух цветов, конвертируем в черно-белое..." << std::endl;
             convertToBlackAndWhite();
         }
-        for (int y = infoHeader.height - 1; y >= 0; y-=2) {
+        for (int y = infoHeader.height - 1; y >= 0; y -= 2) {
             for (int x = 0; x < infoHeader.width; ++x) {
-                int index = (y * rowStride) + (x * (infoHeader.bitCount / 8));
+                int index = getPixelIndex(x, y);
                 uint8_t blue = pixelData[index];
                 uint8_t green = pixelData[index + 1];
                 uint8_t red = pixelData[index + 2];
 
-                if (red == 255 && green == 255 && blue == 255)
-                    std::cout << WHITE;
-                else
-                    std::cout << BLACK;
+                std::cout << ((red == 255 && green == 255 && blue == 255) ? WHITE : BLACK);
             }
             std::cout << std::endl;
         }
@@ -141,7 +141,6 @@ public:
         pixelData.clear();
     }
 };
-
 
 int main(int argc, char* argv[]) {
     try {
