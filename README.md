@@ -1,4 +1,4 @@
-# BMP Image Viewer
+# BMP Show
 
 ## Описание
 
