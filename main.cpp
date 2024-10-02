@@ -152,7 +152,7 @@ public:
         }
     }
 
-    void clearData() {
+    ~BMPImage() {
         pixelData.clear();
     }
 };
@@ -166,7 +166,6 @@ int main(int argc, char *argv[]) {
         BMPImage image;
         image.openBMP(argv[1]);
         image.displayBMP();
-        image.clearData();
     } catch (const std::exception &e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;
         return 1;
